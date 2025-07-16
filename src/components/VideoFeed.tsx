@@ -3,10 +3,13 @@ import { Badge } from '@/components/ui/badge';
 import { Camera, AlertTriangle, CheckCircle, Settings, Signal } from 'lucide-react';
 
 interface Track {
-  id: number;
-  name: string;
-  status: 'clear' | 'obstacle' | 'maintenance';
+  id: string;
+  stationName: string;
+  trackNumber: string;
+  location: string;
   camera: string;
+  status: 'clear' | 'obstacle' | 'maintenance' | 'danger';
+  isActive: boolean;
 }
 
 interface VideoFeedProps {
@@ -23,6 +26,8 @@ export function VideoFeed({ track, isActive }: VideoFeedProps) {
         return <AlertTriangle className="h-4 w-4 text-destructive" />;
       case 'maintenance':
         return <Settings className="h-4 w-4 text-warning" />;
+      case 'danger':
+        return <AlertTriangle className="h-4 w-4 text-destructive" />;
       default:
         return <Camera className="h-4 w-4 text-muted-foreground" />;
     }
@@ -36,6 +41,8 @@ export function VideoFeed({ track, isActive }: VideoFeedProps) {
         return 'bg-destructive';
       case 'maintenance':
         return 'bg-warning';
+      case 'danger':
+        return 'bg-destructive';
       default:
         return 'bg-muted';
     }
@@ -47,7 +54,7 @@ export function VideoFeed({ track, isActive }: VideoFeedProps) {
         <CardTitle className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
             <Camera className="h-4 w-4 text-primary" />
-            <span>{track.name}</span>
+            <span>{track.stationName} - Track {track.trackNumber}</span>
           </div>
           <Badge variant="outline" className={getStatusColor(track.status)}>
             {getStatusIcon(track.status)}
@@ -86,6 +93,11 @@ export function VideoFeed({ track, isActive }: VideoFeedProps) {
               OBSTACLE DETECTED
             </div>
           )}
+          {track.status === 'danger' && (
+            <div className="absolute top-2 left-2 bg-destructive/90 text-destructive-foreground px-2 py-1 rounded text-xs font-medium animate-pulse">
+              ⚠️ CRITICAL DANGER
+            </div>
+          )}
           
           {/* Signal Strength */}
           <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/50 px-2 py-1 rounded">
@@ -95,9 +107,15 @@ export function VideoFeed({ track, isActive }: VideoFeedProps) {
         </div>
 
         {/* Camera Info */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Camera: {track.camera}</span>
-          <span>Resolution: 1920x1080</span>
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between">
+            <span>Camera: {track.camera}</span>
+            <span>Resolution: 1920x1080</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Location: {track.location}</span>
+            <span className="text-primary">Active</span>
+          </div>
         </div>
       </CardContent>
     </Card>
