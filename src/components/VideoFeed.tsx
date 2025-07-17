@@ -3,6 +3,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Camera, AlertTriangle, CheckCircle, Settings, Signal, Maximize2, Play, Pause } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
+import { YOLOv8VideoAnalyzer } from './YOLOv8VideoAnalyzer';
+
+interface Detection {
+  id: string;
+  type: 'obstacle' | 'person' | 'animal' | 'debris' | 'vehicle';
+  confidence: number;
+  location: string;
+  dangerLevel: 'low' | 'medium' | 'high' | 'critical';
+  timestamp: Date;
+  description: string;
+}
 
 interface Track {
   id: string;
@@ -18,9 +29,10 @@ interface Track {
 interface VideoFeedProps {
   track: Track;
   isActive: boolean;
+  onDetection?: (detection: Detection) => void;
 }
 
-export function VideoFeed({ track, isActive }: VideoFeedProps) {
+export function VideoFeed({ track, isActive, onDetection }: VideoFeedProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -209,6 +221,16 @@ export function VideoFeed({ track, isActive }: VideoFeedProps) {
             <span className="text-primary">Active</span>
           </div>
         </div>
+
+        {/* YOLOv8 Analysis Component */}
+        {isActive && onDetection && (
+          <YOLOv8VideoAnalyzer 
+            videoElement={videoRef.current}
+            isActive={isActive && isPlaying}
+            trackLocation={`${track.stationName} - Track ${track.trackNumber}`}
+            onDetection={onDetection}
+          />
+        )}
       </CardContent>
     </Card>
   );

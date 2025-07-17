@@ -104,7 +104,41 @@ export function Dashboard({ onLogout }: DashboardProps) {
     setTracks(initialTracks);
   }, []);
 
-  // Real-time detection simulation
+  // Handle YOLOv8 detections
+  const handleDetection = (detection: Detection) => {
+    setTracks(prevTracks => {
+      return prevTracks.map(track => {
+        // Find the track that matches the detection location
+        const trackLocation = `${track.stationName} - Track ${track.trackNumber}`;
+        if (trackLocation === detection.location) {
+          // Show alert for dangerous detections
+          if (detection.dangerLevel === 'high' || detection.dangerLevel === 'critical') {
+            toast({
+              title: "🤖 YOLOv8 DETECTION",
+              description: `${detection.description} detected at ${detection.location}`,
+              variant: "destructive",
+            });
+          }
+
+          const updatedDetections = [...track.detections, detection];
+          
+          // Keep only recent detections (last 15)
+          const recentDetections = updatedDetections.slice(-15);
+          
+          return {
+            ...track,
+            detections: recentDetections,
+            status: detection.dangerLevel === 'critical' ? 'danger' as const : 
+                   detection.dangerLevel === 'high' ? 'obstacle' as const : 
+                   track.status,
+          };
+        }
+        return track;
+      });
+    });
+  };
+
+  // Real-time detection simulation (reduced frequency since we have YOLOv8)
   useEffect(() => {
     if (!isMonitoring) return;
 
@@ -113,34 +147,25 @@ export function Dashboard({ onLogout }: DashboardProps) {
       
       setTracks(prevTracks => {
         const updatedTracks = prevTracks.map(track => {
-          // Random chance for new detection
-          if (Math.random() > 0.85) {
+          // Reduced chance for simulated detection since we have YOLOv8
+          if (Math.random() > 0.95) {
             const detectionTypeData = detectionTypes[Math.floor(Math.random() * detectionTypes.length)];
             const description = detectionTypeData.descriptions[Math.floor(Math.random() * detectionTypeData.descriptions.length)];
             
             const newDetection: Detection = {
-              id: `det-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              id: `sim-det-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               type: detectionTypeData.type,
               confidence: Math.random() * 0.4 + 0.6, // 60-100% confidence
               location: track.location,
               dangerLevel: getDangerLevel(detectionTypeData.type),
               timestamp: new Date(),
-              description,
+              description: `[Simulated] ${description}`,
             };
-
-            // Show alert for dangerous detections
-            if (newDetection.dangerLevel === 'high' || newDetection.dangerLevel === 'critical') {
-              toast({
-                title: "⚠️ DANGER ALERT",
-                description: `${newDetection.description} detected at ${track.stationName} - Track ${track.trackNumber}`,
-                variant: "destructive",
-              });
-            }
 
             const updatedDetections = [...track.detections, newDetection];
             
-            // Keep only recent detections (last 10)
-            const recentDetections = updatedDetections.slice(-10);
+            // Keep only recent detections (last 15)
+            const recentDetections = updatedDetections.slice(-15);
             
             return {
               ...track,
@@ -152,7 +177,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
           }
 
           // Random chance to clear detections
-          if (Math.random() > 0.9 && track.detections.length > 0) {
+          if (Math.random() > 0.95 && track.detections.length > 0) {
             return {
               ...track,
               detections: track.detections.slice(0, -1),
@@ -165,7 +190,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
         return updatedTracks;
       });
-    }, 3000); // Check every 3 seconds
+    }, 5000); // Check every 5 seconds (reduced frequency)
 
     return () => clearInterval(interval);
   }, [isMonitoring, toast]);
@@ -337,6 +362,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                       key={track.id} 
                       track={track} 
                       isActive={isMonitoring}
+                      onDetection={handleDetection}
                     />
                   ))}
                 </div>
