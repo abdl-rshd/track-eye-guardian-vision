@@ -39,6 +39,7 @@ interface TrackData {
   trackNumber: string;
   location: string;
   camera: string;
+  streamUrl?: string;
   status: 'clear' | 'obstacle' | 'maintenance' | 'danger';
   detections: Detection[];
   isActive: boolean;
@@ -72,6 +73,15 @@ export function Dashboard({ onLogout }: DashboardProps) {
     { type: 'obstacle' as const, descriptions: ['Unknown object', 'Large debris', 'Structural damage', 'Equipment failure'] },
   ];
 
+  // Sample stream URLs (you can replace these with your actual camera feeds)
+  const sampleStreams = [
+    'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4',
+    'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4',
+    // Add more URLs here for real camera streams
+    // 'rtsp://your-camera-ip:554/stream',
+    // 'http://your-camera-ip:8080/video',
+  ];
+
   // Initialize tracks with random data
   useEffect(() => {
     const initialTracks: TrackData[] = Array.from({ length: 8 }, (_, i) => {
@@ -84,6 +94,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
         trackNumber,
         location: `${station.location}, ${station.city}`,
         camera: `CAM-${String(i + 1).padStart(3, '0')}`,
+        streamUrl: i < sampleStreams.length ? sampleStreams[i] : undefined, // Add stream URL for first few tracks
         status: Math.random() > 0.7 ? 'clear' : (Math.random() > 0.5 ? 'obstacle' : 'clear'),
         detections: [],
         isActive: true,

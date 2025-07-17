@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Camera, AlertTriangle, CheckCircle, Settings, Signal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Camera, AlertTriangle, CheckCircle, Settings, Signal, Maximize2, Play, Pause } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 
 interface Track {
   id: string;
@@ -8,6 +10,7 @@ interface Track {
   trackNumber: string;
   location: string;
   camera: string;
+  streamUrl?: string;
   status: 'clear' | 'obstacle' | 'maintenance' | 'danger';
   isActive: boolean;
 }
@@ -18,6 +21,45 @@ interface VideoFeedProps {
 }
 
 export function VideoFeed({ track, isActive }: VideoFeedProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    if (track.streamUrl && videoRef.current && isActive) {
+      const video = videoRef.current;
+      video.src = track.streamUrl;
+      if (isPlaying) {
+        video.play().catch(() => setHasError(true));
+      }
+    }
+  }, [track.streamUrl, isActive, isPlaying]);
+
+  const handlePlayPause = () => {
+    if (!videoRef.current || !track.streamUrl) return;
+    
+    if (isPlaying) {
+      videoRef.current.pause();
+    } else {
+      videoRef.current.play().catch(() => setHasError(true));
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleFullscreen = () => {
+    if (!videoRef.current) return;
+    
+    if (videoRef.current.requestFullscreen) {
+      videoRef.current.requestFullscreen();
+      setIsFullscreen(true);
+    }
+  };
+
+  const handleVideoError = () => {
+    setHasError(true);
+    setIsPlaying(false);
+  };
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'clear':
@@ -63,29 +105,79 @@ export function VideoFeed({ track, isActive }: VideoFeedProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Video Feed Placeholder */}
+        {/* Video Feed */}
         <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent">
-            {isActive ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <Camera className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-50" />
-                  <p className="text-sm text-muted-foreground">Live Feed: {track.camera}</p>
-                  <div className="mt-2 flex items-center justify-center gap-1">
-                    <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-                    <span className="text-xs text-success">RECORDING</span>
+          {track.streamUrl && !hasError ? (
+            <>
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                onError={handleVideoError}
+                onLoadedData={() => setHasError(false)}
+                controls={false}
+                muted
+                playsInline
+              />
+              
+              {/* Video Controls Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 opacity-0 hover:opacity-100 transition-opacity duration-200">
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handlePlayPause}
+                      className="bg-black/70 text-white hover:bg-black/90"
+                    >
+                      {isPlaying ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleFullscreen}
+                    className="bg-black/70 text-white hover:bg-black/90"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent">
+              {isActive && !hasError ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <Camera className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-50" />
+                    <p className="text-sm text-muted-foreground">Live Feed: {track.camera}</p>
+                    <div className="mt-2 flex items-center justify-center gap-1">
+                      <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
+                      <span className="text-xs text-success">RECORDING</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <Camera className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-30" />
-                  <p className="text-sm text-muted-foreground">Feed Paused</p>
+              ) : hasError ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <AlertTriangle className="h-12 w-12 mx-auto mb-2 text-destructive opacity-50" />
+                    <p className="text-sm text-muted-foreground">Stream Error</p>
+                    <p className="text-xs text-muted-foreground">Unable to load camera feed</p>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <Camera className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-30" />
+                    <p className="text-sm text-muted-foreground">Feed Paused</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           
           {/* Status Overlay */}
           {track.status === 'obstacle' && (
