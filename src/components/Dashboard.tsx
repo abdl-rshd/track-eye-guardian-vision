@@ -10,13 +10,14 @@ import {
   Clock, 
   Users, 
   LogOut,
-  Play,
-  Pause,
-  MapPin,
+  Upload,
+  Eye,
+  FileVideo,
   Zap
 } from 'lucide-react';
 import { ObstacleDetection } from './ObstacleDetection';
-import { VideoFeed } from './VideoFeed';
+import { VideoUpload } from './VideoUpload';
+import { VideoAnalysis } from './VideoAnalysis';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardProps {
@@ -33,16 +34,22 @@ interface Detection {
   description: string;
 }
 
+interface UploadedVideo {
+  id: string;
+  file: File;
+  url: string;
+  name: string;
+  size: string;
+  duration?: number;
+  status: 'ready' | 'analyzing' | 'completed' | 'error';
+}
+
 interface TrackData {
   id: string;
   stationName: string;
   trackNumber: string;
   location: string;
-  camera: string;
-  streamUrl?: string;
-  status: 'clear' | 'obstacle' | 'maintenance' | 'danger';
   detections: Detection[];
-  isActive: boolean;
 }
 
 export function Dashboard({ onLogout }: DashboardProps) {
@@ -51,20 +58,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [totalDetections, setTotalDetections] = useState(0);
   const [dangerousDetections, setDangerousDetections] = useState(0);
-  const [tracks, setTracks] = useState<TrackData[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<UploadedVideo[]>([]);
+  const [currentVideo, setCurrentVideo] = useState<UploadedVideo | null>(null);
+  const [allDetections, setAllDetections] = useState<Detection[]>([]);
 
-  // Railway station names and locations
-  const stationData = [
-    { name: 'Central Station', location: 'Downtown', city: 'Mumbai' },
-    { name: 'North Junction', location: 'North District', city: 'Delhi' },
-    { name: 'East Terminal', location: 'Industrial Area', city: 'Bangalore' },
-    { name: 'South Express', location: 'Residential Zone', city: 'Chennai' },
-    { name: 'West Metro', location: 'Commercial Hub', city: 'Kolkata' },
-    { name: 'Park Avenue', location: 'Green Belt', city: 'Hyderabad' },
-    { name: 'River View', location: 'Riverside', city: 'Pune' },
-    { name: 'Hill Station', location: 'Elevated Area', city: 'Shimla' },
-  ];
-
+  // Sample detection types for random generation (keep for demo purposes)
   const detectionTypes = [
     { type: 'person' as const, descriptions: ['Person on tracks', 'Pedestrian crossing', 'Worker maintenance', 'Trespasser detected'] },
     { type: 'animal' as const, descriptions: ['Stray dog', 'Cattle on tracks', 'Wild animal', 'Bird flock'] },
@@ -73,137 +71,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     { type: 'obstacle' as const, descriptions: ['Unknown object', 'Large debris', 'Structural damage', 'Equipment failure'] },
   ];
 
-  // Sample stream URLs (you can replace these with your actual camera feeds)
-  const sampleStreams = [
-    'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4',
-    'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4',
-    // Add more URLs here for real camera streams
-    // 'rtsp://your-camera-ip:554/stream',
-    // 'http://your-camera-ip:8080/video',
-  ];
-
-  // Initialize tracks with random data
-  useEffect(() => {
-    const initialTracks: TrackData[] = Array.from({ length: 8 }, (_, i) => {
-      const station = stationData[i % stationData.length];
-      const trackNumber = `${String.fromCharCode(65 + Math.floor(i / 2))}-${(i % 2) + 1}`;
-      
-      return {
-        id: `track-${i + 1}`,
-        stationName: station.name,
-        trackNumber,
-        location: `${station.location}, ${station.city}`,
-        camera: `CAM-${String(i + 1).padStart(3, '0')}`,
-        streamUrl: i < sampleStreams.length ? sampleStreams[i] : undefined, // Add stream URL for first few tracks
-        status: Math.random() > 0.7 ? 'clear' : (Math.random() > 0.5 ? 'obstacle' : 'clear'),
-        detections: [],
-        isActive: true,
-      };
-    });
-
-    setTracks(initialTracks);
-  }, []);
-
-  // Handle YOLOv8 detections
-  const handleDetection = (detection: Detection) => {
-    setTracks(prevTracks => {
-      return prevTracks.map(track => {
-        // Find the track that matches the detection location
-        const trackLocation = `${track.stationName} - Track ${track.trackNumber}`;
-        if (trackLocation === detection.location) {
-          // Show alert for dangerous detections
-          if (detection.dangerLevel === 'high' || detection.dangerLevel === 'critical') {
-            toast({
-              title: "🤖 YOLOv8 DETECTION",
-              description: `${detection.description} detected at ${detection.location}`,
-              variant: "destructive",
-            });
-          }
-
-          const updatedDetections = [...track.detections, detection];
-          
-          // Keep only recent detections (last 15)
-          const recentDetections = updatedDetections.slice(-15);
-          
-          return {
-            ...track,
-            detections: recentDetections,
-            status: detection.dangerLevel === 'critical' ? 'danger' as const : 
-                   detection.dangerLevel === 'high' ? 'obstacle' as const : 
-                   track.status,
-          };
-        }
-        return track;
-      });
-    });
-  };
-
-  // Real-time detection simulation (reduced frequency since we have YOLOv8)
-  useEffect(() => {
-    if (!isMonitoring) return;
-
-    const interval = setInterval(() => {
-      setLastUpdate(new Date());
-      
-      setTracks(prevTracks => {
-        const updatedTracks = prevTracks.map(track => {
-          // Reduced chance for simulated detection since we have YOLOv8
-          if (Math.random() > 0.95) {
-            const detectionTypeData = detectionTypes[Math.floor(Math.random() * detectionTypes.length)];
-            const description = detectionTypeData.descriptions[Math.floor(Math.random() * detectionTypeData.descriptions.length)];
-            
-            const newDetection: Detection = {
-              id: `sim-det-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              type: detectionTypeData.type,
-              confidence: Math.random() * 0.4 + 0.6, // 60-100% confidence
-              location: track.location,
-              dangerLevel: getDangerLevel(detectionTypeData.type),
-              timestamp: new Date(),
-              description: `[Simulated] ${description}`,
-            };
-
-            const updatedDetections = [...track.detections, newDetection];
-            
-            // Keep only recent detections (last 15)
-            const recentDetections = updatedDetections.slice(-15);
-            
-            return {
-              ...track,
-              detections: recentDetections,
-              status: newDetection.dangerLevel === 'critical' ? 'danger' as const : 
-                     newDetection.dangerLevel === 'high' ? 'obstacle' as const : 
-                     track.status,
-            };
-          }
-
-          // Random chance to clear detections
-          if (Math.random() > 0.95 && track.detections.length > 0) {
-            return {
-              ...track,
-              detections: track.detections.slice(0, -1),
-              status: track.detections.length === 1 ? 'clear' as const : track.status,
-            };
-          }
-
-          return track;
-        });
-
-        return updatedTracks;
-      });
-    }, 5000); // Check every 5 seconds (reduced frequency)
-
-    return () => clearInterval(interval);
-  }, [isMonitoring, toast]);
-
-  // Calculate statistics
-  useEffect(() => {
-    const allDetections = tracks.flatMap(track => track.detections);
-    setTotalDetections(allDetections.length);
-    
-    const dangerous = allDetections.filter(d => d.dangerLevel === 'high' || d.dangerLevel === 'critical');
-    setDangerousDetections(dangerous.length);
-  }, [tracks]);
-
+  // Helper function to determine danger level
   const getDangerLevel = (type: Detection['type']): Detection['dangerLevel'] => {
     switch (type) {
       case 'person':
@@ -221,11 +89,99 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
   };
 
-  const clearTracks = tracks.filter(track => track.status === 'clear').length;
-  const activeCameras = tracks.filter(track => track.isActive).length;
-  
+  // Handle video upload
+  const handleVideoSelect = (video: UploadedVideo) => {
+    setUploadedVideos(prev => {
+      const existing = prev.find(v => v.id === video.id);
+      if (existing) {
+        return prev.map(v => v.id === video.id ? video : v);
+      }
+      return [...prev, video];
+    });
+    
+    setCurrentVideo(video);
+  };
+
+  // Remove uploaded video
+  const handleRemoveVideo = (videoId: string) => {
+    setUploadedVideos(prev => prev.filter(v => v.id !== videoId));
+    if (currentVideo?.id === videoId) {
+      setCurrentVideo(null);
+    }
+  };
+
+  // Handle video analysis status updates
+  const handleStatusUpdate = (videoId: string, status: UploadedVideo['status']) => {
+    setUploadedVideos(prev => 
+      prev.map(v => v.id === videoId ? { ...v, status } : v)
+    );
+  };
+
+  // Handle analysis completion
+  const handleAnalysisComplete = (videoId: string, detections: Detection[]) => {
+    toast({
+      title: "✅ Analysis Complete",
+      description: `Found ${detections.length} detections in video`,
+    });
+    setLastUpdate(new Date());
+  };
+
+  // Handle YOLOv8 detections from video analysis
+  const handleDetection = (detection: Detection) => {
+    setAllDetections(prev => {
+      const updated = [...prev, detection];
+      // Keep only recent detections (last 20)
+      return updated.slice(-20);
+    });
+
+    // Show alert for dangerous detections
+    if (detection.dangerLevel === 'high' || detection.dangerLevel === 'critical') {
+      toast({
+        title: "🤖 YOLOv8 DETECTION",
+        description: `${detection.description} detected in video`,
+        variant: "destructive",
+      });
+    }
+
+    setLastUpdate(new Date());
+  };
+
+  // Simulate some background detections for demo (much reduced frequency)
+  useEffect(() => {
+    if (!isMonitoring) return;
+
+    const interval = setInterval(() => {
+      // Very occasional simulated detection for demo
+      if (Math.random() > 0.98) {
+        const detectionTypeData = detectionTypes[Math.floor(Math.random() * detectionTypes.length)];
+        const description = detectionTypeData.descriptions[Math.floor(Math.random() * detectionTypeData.descriptions.length)];
+        
+        const newDetection: Detection = {
+          id: `sim-det-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          type: detectionTypeData.type,
+          confidence: Math.random() * 0.4 + 0.6,
+          location: 'Background Monitor',
+          dangerLevel: getDangerLevel(detectionTypeData.type),
+          timestamp: new Date(),
+          description: `[Simulated] ${description}`,
+        };
+
+        setAllDetections(prev => [...prev, newDetection].slice(-20));
+      }
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [isMonitoring]);
+
+  // Calculate statistics
+  useEffect(() => {
+    setTotalDetections(allDetections.length);
+    
+    const dangerous = allDetections.filter(d => d.dangerLevel === 'high' || d.dangerLevel === 'critical');
+    setDangerousDetections(dangerous.length);
+  }, [allDetections]);
+
   const getCurrentThreatLevel = () => {
-    const allDetections = tracks.flatMap(track => track.detections);
     if (allDetections.some(d => d.dangerLevel === 'critical')) return 'CRITICAL';
     if (allDetections.some(d => d.dangerLevel === 'high')) return 'HIGH';
     if (allDetections.some(d => d.dangerLevel === 'medium')) return 'MEDIUM';
@@ -244,6 +200,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const currentThreatLevel = getCurrentThreatLevel();
 
+  // Calculated values
+  const completedAnalyses = uploadedVideos.filter(v => v.status === 'completed').length;
+  const activeCameras = uploadedVideos.filter(v => v.status === 'analyzing').length;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -253,7 +213,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <Camera className="h-8 w-8 text-primary" />
             <div>
               <h1 className="text-2xl font-bold text-foreground">Railway Monitor</h1>
-              <p className="text-sm text-muted-foreground">Live Track Surveillance</p>
+              <p className="text-sm text-muted-foreground">YOLOv8 Video Analysis System</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -276,10 +236,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Active Cameras</p>
-                  <p className="text-2xl font-bold text-foreground">{activeCameras}</p>
+                  <p className="text-sm text-muted-foreground">Uploaded Videos</p>
+                  <p className="text-2xl font-bold text-foreground">{uploadedVideos.length}</p>
                 </div>
-                <Camera className="h-8 w-8 text-primary" />
+                <FileVideo className="h-8 w-8 text-primary" />
               </div>
             </CardContent>
           </Card>
@@ -300,8 +260,8 @@ export function Dashboard({ onLogout }: DashboardProps) {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Clear Tracks</p>
-                  <p className="text-2xl font-bold text-success">{clearTracks}</p>
+                  <p className="text-sm text-muted-foreground">Completed Analysis</p>
+                  <p className="text-2xl font-bold text-success">{completedAnalyses}</p>
                 </div>
                 <CheckCircle className="h-8 w-8 text-success" />
               </div>
@@ -339,40 +299,72 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Video Feeds */}
+          {/* Video Upload and Analysis */}
           <div className="lg:col-span-2 space-y-4">
+            {!currentVideo ? (
+              <VideoUpload
+                onVideoSelect={handleVideoSelect}
+                uploadedVideos={uploadedVideos}
+                onRemoveVideo={handleRemoveVideo}
+                currentVideo={currentVideo}
+              />
+            ) : (
+              <VideoAnalysis
+                video={currentVideo}
+                onDetection={handleDetection}
+                onAnalysisComplete={handleAnalysisComplete}
+                onStatusUpdate={handleStatusUpdate}
+              />
+            )}
+            
+            {currentVideo && (
+              <Button
+                variant="outline"
+                onClick={() => setCurrentVideo(null)}
+                className="w-full"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Back to Upload
+              </Button>
+            )}
+          </div>
+
+          {/* Detection Results and System Status */}
+          <div className="space-y-4">
+            <ObstacleDetection detections={allDetections} />
+            
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Live Video Feeds</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsMonitoring(!isMonitoring)}
-                  >
-                    {isMonitoring ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
-                    {isMonitoring ? 'Pause' : 'Resume'}
-                  </Button>
+                <CardTitle className="flex items-center gap-2">
+                  <Eye className="h-5 w-5" />
+                  YOLOv8 Analysis Status
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {tracks.map((track) => (
-                    <VideoFeed 
-                      key={track.id} 
-                      track={track} 
-                      isActive={isMonitoring}
-                      onDetection={handleDetection}
-                    />
-                  ))}
+              <CardContent className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Model Status</span>
+                  <Badge variant="default" className="bg-success">Loaded</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Processing</span>
+                  <Badge variant="outline" className={activeCameras > 0 ? "bg-warning" : "bg-muted"}>
+                    {activeCameras > 0 ? `${activeCameras} Active` : 'Idle'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Total Videos</span>
+                  <Badge variant="outline" className="border-primary text-primary">
+                    {uploadedVideos.length}
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Alerts</span>
+                  <Badge variant="outline" className="border-warning text-warning">
+                    {dangerousDetections} Active
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
-          </div>
-
-          {/* Obstacle Detection */}
-          <div className="space-y-4">
-            <ObstacleDetection detections={tracks.flatMap(track => track.detections)} />
             
             <Card className="bg-card border-border">
               <CardHeader>
@@ -383,7 +375,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">AI Detection</span>
+                  <span className="text-sm text-muted-foreground">YOLOv8 Detection</span>
                   <Badge variant="default" className="bg-success">Online</Badge>
                 </div>
                 <div className="flex justify-between items-center">
@@ -391,11 +383,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
                   <Badge variant="default" className="bg-success">Connected</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Recording</span>
-                  <Badge variant="default" className="bg-primary">Active</Badge>
+                  <span className="text-sm text-muted-foreground">Video Processing</span>
+                  <Badge variant="default" className="bg-primary">Ready</Badge>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Alerts</span>
+                  <span className="text-sm text-muted-foreground">Threat Alerts</span>
                   <Badge variant="outline" className="border-warning text-warning">
                     {dangerousDetections} Active
                   </Badge>
